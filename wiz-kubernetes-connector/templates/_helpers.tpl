@@ -127,6 +127,37 @@ Input parameters
 {{- end -}}
 {{- end }}
 
+{{/*
+Helper to handle clusterExternalId vs clusterExternalIdSecretRef
+Always returns the environment variable reference for command flags
+*/}}
+{{- define "wiz-kubernetes-connector.clusterExternalId.value" -}}
+$(WIZ_CLUSTER_EXTERNAL_ID)
+{{- end -}}
+
+{{/*
+Helper to determine if clusterExternalId should be set (either direct value or secret ref)
+*/}}
+{{- define "wiz-kubernetes-connector.clusterExternalId.enabled" -}}
+{{- $directValue := coalesce .Values.global.clusterExternalId .Values.autoCreateConnector.clusterExternalId -}}
+{{- $secretRefValue := .Values.autoCreateConnector.clusterExternalIdSecretRef }}
+{{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+{{- end }}
+{{- if or (and $directValue (ne $directValue "")) (and $secretRefValue.name (ne $secretRefValue.name "")) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Helper to get the secret ref for clusterExternalId
+*/}}
+{{- define "wiz-kubernetes-connector.clusterExternalId.secretRef" -}}
+{{- $globalSecretRef := .Values.global.clusterExternalIdSecretRef -}}
+{{- $connectorSecretRef := .Values.autoCreateConnector.clusterExternalIdSecretRef -}}
+{{- coalesce $globalSecretRef $connectorSecretRef -}}
+{{- end -}}
+
 {{- define "wiz-kubernetes-connector.argsListCreateConnector" -}}
 create-kubernetes-connector
 --api-server-endpoint
@@ -153,9 +184,9 @@ create-kubernetes-connector
 --service-type
 {{ . | quote }}
 {{- end }}
-{{- with (coalesce .Values.global.clusterExternalId .Values.autoCreateConnector.clusterExternalId) }}
+{{- if include "wiz-kubernetes-connector.clusterExternalId.enabled" . }}
 --cluster-external-id
-{{ . | quote }}
+{{ include "wiz-kubernetes-connector.clusterExternalId.value" . }}
 {{- end }}
 {{- with (coalesce .Values.global.subscriptionExternalId .Values.autoCreateConnector.subscriptionExternalId) }}
 --subscription-external-id
@@ -329,4 +360,20 @@ false
 {{- end }}
 - name: WIZ_ENV
   value: {{ coalesce .Values.global.wizApiToken.clientEndpoint .Values.wizApiToken.clientEndpoint | quote }}
+{{- if include "wiz-kubernetes-connector.clusterExternalId.enabled" . }}
+{{- $directValue := coalesce .Values.global.clusterExternalId .Values.autoCreateConnector.clusterExternalId -}}
+{{- $secretRefValue := .Values.autoCreateConnector.clusterExternalIdSecretRef }}
+{{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+{{- end }}
+- name: WIZ_CLUSTER_EXTERNAL_ID
+{{- if and $secretRefValue.name (ne $secretRefValue.name "") }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretRefValue.name }}
+      key: {{ $secretRefValue.key }}
+{{- else if and $directValue (ne $directValue "") }}
+  value: {{ $directValue }}
+{{- end }}
+{{- end }}
 {{- end }}

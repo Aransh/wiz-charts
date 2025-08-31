@@ -282,9 +282,21 @@ spec:
         - name: SENSOR_START_DELAY_RANGE
           value: {{ quote .Values.startDelayRange }}
         {{- end}}
-        {{- if coalesce .Values.global.clusterExternalId .Values.clusterExternalId }}
+        {{- if include "wiz-sensor.clusterExternalId.enabled" . }}
+        {{- $directValue := coalesce .Values.global.clusterExternalId .Values.clusterExternalId -}}
+        {{- $secretRefValue := .Values.clusterExternalIdSecretRef }}
+        {{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+        {{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+        {{- end }}
         - name: CLUSTER_EXTERNAL_ID
-          value: {{ coalesce .Values.global.clusterExternalId .Values.clusterExternalId }}
+        {{- if and $secretRefValue.name (ne $secretRefValue.name "") }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $secretRefValue.name }}
+              key: {{ $secretRefValue.key }}
+        {{- else if and $directValue (ne $directValue "") }}
+          value: {{ $directValue }}
+        {{- end }}
         {{- end }}
         {{- with coalesce .Values.global.subscriptionExternalId .Values.subscriptionExternalId }}
         - name: SUBSCRIPTION_EXTERNAL_ID

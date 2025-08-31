@@ -404,11 +404,36 @@ Clean the list of deployments for the auto-update flag, removing quotes and brac
 - "--update-deployments={{ $deployments }}"
 {{- end -}}
 
+{{/*
+Helper to handle clusterExternalId vs clusterExternalIdSecretRef
+Always returns the environment variable reference for command flags
+*/}}
+{{- define "wiz-admission-controller.clusterExternalId.value" -}}
+$(WIZ_CLUSTER_EXTERNAL_ID)
+{{- end -}}
+
+{{/*
+Helper to determine if clusterExternalId should be set (either direct value or secret ref)
+*/}}
+{{- define "wiz-admission-controller.clusterExternalId.enabled" -}}
+{{- $directValue := coalesce .Values.global.clusterExternalId .Values.webhook.clusterExternalId .Values.opaWebhook.clusterExternalId -}}
+{{- $secretRefValue := .Values.webhook.clusterExternalIdSecretRef }}
+{{- if .Values.opaWebhook.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.opaWebhook.clusterExternalIdSecretRef }}
+{{- end }}
+{{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+{{- end }}
+{{- if or (and $directValue (ne $directValue "")) (and $secretRefValue.name (ne $secretRefValue.name "")) -}}
+true
+{{- end -}}
+{{- end -}}
+
 {{- define "wiz-admission-controller.spec.common.commandArgs" -}}
 # Cluster identification flags
-{{- with (coalesce .Values.global.clusterExternalId .Values.webhook.clusterExternalId .Values.opaWebhook.clusterExternalId) }}
+{{- if include "wiz-admission-controller.clusterExternalId.enabled" . }}
 - --cluster-external-id
-- {{ . | quote }}
+- {{ include "wiz-admission-controller.clusterExternalId.value" . }}
 {{- end }}
 {{- with (coalesce .Values.global.subscriptionExternalId .Values.webhook.subscriptionExternalId) }}
 - --subscription-external-id
@@ -494,6 +519,25 @@ false
 {{- end }}
 - name: WIZ_ENV
   value: {{ coalesce .Values.global.wizApiToken.clientEndpoint .Values.wizApiToken.clientEndpoint | quote }}
+{{- if include "wiz-admission-controller.clusterExternalId.enabled" . }}
+{{- $directValue := coalesce .Values.global.clusterExternalId .Values.webhook.clusterExternalId .Values.opaWebhook.clusterExternalId -}}
+{{- $secretRefValue := .Values.webhook.clusterExternalIdSecretRef }}
+{{- if .Values.opaWebhook.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.opaWebhook.clusterExternalIdSecretRef }}
+{{- end }}
+{{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+{{- end }}
+- name: WIZ_CLUSTER_EXTERNAL_ID
+{{- if and $secretRefValue.name (ne $secretRefValue.name "") }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretRefValue.name }}
+      key: {{ $secretRefValue.key }}
+{{- else if and $directValue (ne $directValue "") }}
+  value: {{ $directValue }}
+{{- end }}
+{{- end }}
 {{- if .Values.logLevel }}
 - name: LOG_LEVEL
   value: {{ .Values.logLevel }}

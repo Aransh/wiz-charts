@@ -196,3 +196,17 @@ Rule Validation
 {{- end }}
 
 {{- end }}
+
+{{/*
+Helper to determine if clusterExternalId should be set (either direct value or secret ref)
+*/}}
+{{- define "wiz-sensor.clusterExternalId.enabled" -}}
+{{- $directValue := coalesce .Values.global.clusterExternalId .Values.clusterExternalId -}}
+{{- $secretRefValue := .Values.clusterExternalIdSecretRef }}
+{{- if and .Values.global.clusterExternalIdSecretRef .Values.global.clusterExternalIdSecretRef.name }}
+{{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
+{{- end }}
+{{- if or (and $directValue (ne $directValue "")) (and $secretRefValue.name (ne $secretRefValue.name "")) -}}
+true
+{{- end -}}
+{{- end -}}

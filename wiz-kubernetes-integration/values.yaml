@@ -91,6 +91,9 @@ global:
             - amd64
   tolerations: [] # custom tolerations
   clusterExternalId: "" # Required for OKE clusters - specify the cluster's OCID
+  clusterExternalIdSecretRef:
+    name: "" # Name of the secret containing the cluster external ID
+    key: "clusterExternalId" # Key within the secret containing the cluster external ID value
   subscriptionExternalId: "" # Optional. Used to associate the installation with a Subscription if none can be obtained from IMDS (e.g. on-prem)
   clusterTags: {} # Optional. List of key: value tags to be added to KubernetesCluster object associated with this installation
   subscriptionTags: {} # Optional. List of key: value tags to be added to Subscription object associated with this installation
