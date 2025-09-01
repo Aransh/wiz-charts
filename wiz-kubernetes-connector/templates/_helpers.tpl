@@ -150,12 +150,14 @@ true
 {{- end -}}
 
 {{/*
-Helper to get the secret ref for clusterExternalId
+Helper to determine if connectorName should be set (either direct value or secret ref)
 */}}
-{{- define "wiz-kubernetes-connector.clusterExternalId.secretRef" -}}
-{{- $globalSecretRef := .Values.global.clusterExternalIdSecretRef -}}
-{{- $connectorSecretRef := .Values.autoCreateConnector.clusterExternalIdSecretRef -}}
-{{- coalesce $globalSecretRef $connectorSecretRef -}}
+{{- define "wiz-kubernetes-connector.connectorName.enabled" -}}
+{{- $directValue := .Values.autoCreateConnector.connectorName -}}
+{{- $secretRefValue := .Values.autoCreateConnector.connectorNameSecretRef }}
+{{- if or (and $directValue (ne $directValue "")) (and $secretRefValue.name (ne $secretRefValue.name "")) -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{- define "wiz-kubernetes-connector.argsListCreateConnector" -}}
@@ -176,9 +178,9 @@ create-kubernetes-connector
 --output-secret-name
 {{ include "wiz-kubernetes-connector.connectorSecretName" . | trim | quote }}
 --is-on-prem={{ include "wiz-kubernetes-connector.brokerEnabled" . | trim}}
-{{- with (coalesce .Values.global.clusterDisplayName .Values.autoCreateConnector.connectorName) }}
+{{- if include "wiz-kubernetes-connector.connectorName.enabled" . }}
 --connector-name
-{{ . | quote }}
+$(WIZ_CONNECTOR_NAME)
 {{- end }}
 {{- with .Values.autoCreateConnector.clusterFlavor }}
 --service-type
@@ -367,6 +369,19 @@ false
 {{- $secretRefValue = .Values.global.clusterExternalIdSecretRef }}
 {{- end }}
 - name: WIZ_CLUSTER_EXTERNAL_ID
+{{- if and $secretRefValue.name (ne $secretRefValue.name "") }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretRefValue.name }}
+      key: {{ $secretRefValue.key }}
+{{- else if and $directValue (ne $directValue "") }}
+  value: {{ $directValue }}
+{{- end }}
+{{- end }}
+{{- if include "wiz-kubernetes-connector.connectorName.enabled" . }}
+{{- $directValue := .Values.autoCreateConnector.connectorName -}}
+{{- $secretRefValue := .Values.autoCreateConnector.connectorNameSecretRef }}
+- name: WIZ_CONNECTOR_NAME
 {{- if and $secretRefValue.name (ne $secretRefValue.name "") }}
   valueFrom:
     secretKeyRef:
